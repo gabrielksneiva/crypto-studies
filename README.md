@@ -36,6 +36,14 @@ cmd/
 - ✅ Account model vs UTXO model
 - ✅ Auto-descoberta de nonce e gas price
 - ✅ Broadcast e verificação de confirmações na rede
+- ✅ EIP-1559 (base fee + priority fee) e estimativa automática de gas
+
+### Solana
+- ✅ Como derivar endereços Solana usando BIP39 -> SLIP-0010 (ed25519)
+- ✅ Porque usamos derivação hardened para ed25519
+- ✅ Formato de endereços (base58) e relação com `ed25519.PublicKey`
+- ✅ Como montar uma instrução `system.Transfer` e criar/assinar a transação
+- ✅ Testar localmente com `solana-test-validator` e usar `solana airdrop` para prover fundos
 
 ## 🚀 Pré-requisitos
 
@@ -165,6 +173,60 @@ go build -o eth_sign ./cmd/ETHEREUM/TxSign
 8. ✅ Verifica na mempool
 9. ✅ Aguarda confirmação (até 60 segundos)
 10. ✅ Mostra resultado (sucesso/falha)
+
+### 5. Solana - Derivação de Carteira
+
+```bash
+# Compilar
+go build -o sol_wallet ./cmd/SOLANA/WalletDerivation
+
+# Executar (exemplo)
+./sol_wallet -mnemonic "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about" -passphrase "" -path "m/44'/501'/0'/0'/0'"
+```
+
+**Saída esperada:**
+- Frase mnemônica (12 palavras) — ou a frase que você passou
+- Seed BIP39 (hex)
+- Master key (IL/IR da SLIP-0010)
+- Derivação completa: m/44'/501'/0'/0'/0'
+- Chave privada (seed 32 bytes -> ed25519.PrivateKey)
+- Chave pública / endereço (base58)
+
+Observações:
+- Solana usa chaves ed25519; para derivação correta usamos SLIP-0010 (HMAC-SHA512 com key "ed25519 seed").
+- O caminho padrão aqui segue BIP44 com `coin_type = 501` (Solana) e utiliza derivação hardened em níveis para compatibilidade.
+
+### 6. Solana - Assinatura de Transação
+
+```bash
+# Compilar
+go build -o sol_sign ./cmd/SOLANA/TxSign
+
+# Executar com destino e broadcast (assumindo validador local)
+./sol_sign -mnemonic "<SUA_MNEMONIC>" -to <DEST_BASE58> -lamports 1000000 -broadcast -rpc http://127.0.0.1:8899
+```
+
+**Flags disponíveis:**
+- `-rpc` : RPC endpoint (padrão: `http://127.0.0.1:8899`)
+- `-mnemonic` : frase BIP39 (padrão: frase de exemplo)
+- `-passphrase` : passphrase BIP39 (opcional)
+- `-path` : caminho de derivação (padrão: `m/44'/501'/0'/0'/0'`)
+- `-to` : endereço de destino (base58) — obrigatório
+- `-lamports` : quantidade em lamports (ex: `1000000` = 0.001 SOL)
+- `-broadcast` : envia a transação ao RPC quando presente
+
+**O programa faz automaticamente:**
+1. ✅ Deriva chave privada do mnemônico via BIP39 -> SLIP-0010
+2. ✅ Constrói instrução `system.Transfer` com `programs/system`
+3. ✅ Obtém `recent blockhash` do RPC
+4. ✅ Monta a transação e aplica assinatura local (ed25519)
+5. ✅ Serializa a transação (raw) e imprime em hex/base64
+6. ✅ Faz broadcast para o RPC se `-broadcast` for passado
+
+Observações:
+- 1 SOL = 1_000_000_000 lamports. Use `solana airdrop` no validador local para prover fundos.
+- Para testes locais use `solana-test-validator` no RPC padrão `http://127.0.0.1:8899`.
+
 
 ## 🔧 Setup Rápido - Anvil (Ethereum)
 
