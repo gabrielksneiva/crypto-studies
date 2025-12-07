@@ -12,6 +12,9 @@ cmd/
 └── ETHEREUM/
     ├── WalletDerivation/    # Derivação de carteira Ethereum (BIP39/BIP32/BIP44)
     └── TxSign/              # Criação, assinatura e broadcast de transações Ethereum
+└── SOLANA/
+   ├── WalletDerivation/    # Derivação de carteira Solana (BIP39 -> SLIP-0010 -> ed25519)
+   └── TxSign/              # Montagem, assinatura e broadcast de transações Solana (system transfer)
 ```
 
 ## 🎯 O que você vai aprender
@@ -291,6 +294,155 @@ anvil
 ```
 
 ## 📝 Próximos Passos
+
+## 🪙 Solana
+
+Seção dedicada a aprender, na prática, a derivar carteiras e assinar/transmitir transações Solana.
+
+### O que você vai aprender (Solana)
+- ✅ Como derivar chaves usando BIP39 -> SLIP-0010 (ed25519)
+- ✅ Porque usamos derivação hardened para ed25519
+- ✅ Formato de endereços (base58) e relação com `ed25519.PublicKey`
+- ✅ Como montar uma instrução `system.Transfer` e criar/assinar a transação
+- ✅ Como enviar (broadcast) uma transação para um `solana-test-validator` local
+
+### Pré-requisitos (Solana)
+1. **Go 1.23+** instalado
+2. **Solana Tool Suite** (opcional, mas recomendado para testes locais) — inclui `solana-test-validator` e `solana` CLI
+    ```bash
+    # instalar solana tool (exemplo, veja docs oficiais se necessário)
+    sh -c "$(curl -sSfL https://release.solana.com/stable/install)"
+    export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
+    ```
+
+3. (Opcional) ter `solana-test-validator` rodando localmente para testes:
+    ```bash
+    # Inicia validador local (RPC padrão em http://127.0.0.1:8899)
+    solana-test-validator
+    ```
+
+### Estrutura / comandos úteis (Solana)
+- Compilar derivação de carteira:
+   ```bash
+   go build -o sol_wallet ./cmd/SOLANA/WalletDerivation
+   ./sol_wallet # Mostra a derivação e endereço (base58)
+   ```
+
+- Compilar TxSign (monta, assina e opcionalmente envia):
+   ```bash
+   go build -o sol_tx ./cmd/SOLANA/TxSign
+   ```
+
+### `WalletDerivation` — uso rápido
+- Arquivo: `cmd/SOLANA/WalletDerivation/main.go`
+- Objetivo: derivar chave privada/pública ed25519 a partir de mnemônico BIP39 usando SLIP-0010 e imprimir o endereço base58.
+- Exemplo de execução (usa path padrão `m/44'/501'/0'/0'/0'`):
+   ```bash
+   ./sol_wallet -mnemonic "abandon abandon ... about" -passphrase "" -path "m/44'/501'/0'/0'/0'"
+   ```
+- Saída esperada:
+   - Seed BIP39 (hex)
+   - Chave privada (seed 32 bytes -> ed25519.PrivateKey)
+   - Chave pública (base58 address)
+
+### `TxSign` — montar/assinar/enviar
+- Arquivo: `cmd/SOLANA/TxSign/main.go`
+- Objetivo: a partir do mnemônico BIP39 derivar chave (SLIP-0010), criar instrução `system.Transfer`, assinar localmente e opcionalmente transmitir para um RPC.
+- Flags principais:
+   - `-mnemonic` : frase BIP39 (padrão: frase de exemplo)
+   - `-passphrase` : passphrase BIP39 (opcional)
+   - `-path` : caminho de derivação (padrão: `m/44'/501'/0'/0'/0'`)
+   - `-rpc` : RPC endpoint (padrão: `http://127.0.0.1:8899`)
+   - `-to` : endereço destino (base58) — obrigatório
+   - `-lamports` : quantidade em lamports (ex: `1000000` = 0.001 SOL)
+   - `-broadcast` : envia a transação ao RPC quando presente
+
+#### Exemplo prático (com validador local)
+1. Inicie o `solana-test-validator` em um terminal:
+    ```bash
+    solana-test-validator
+    ```
+
+2. Derive um endereço (ou use `WalletDerivation`) e faça um airdrop local:
+    ```bash
+    # supondo que ADDRESS seja o endereço base58 derivado
+    solana airdrop 1 $ADDRESS --url http://127.0.0.1:8899
+    ```
+
+3. Envie uma transferência usando `TxSign` (substitua `DEST`):
+    ```bash
+    ./sol_tx -mnemonic "<SUA_MNEMONIC>" -to DEST -lamports 1000000 -broadcast -rpc http://127.0.0.1:8899
+    ```
+
+Observações:
+- 1 SOL = 1_000_000_000 lamports. Ajuste `-lamports` conforme necessário.
+- O caminho `m/44'/501'/0'/0'/0'` segue BIP44 com `coin_type = 501` (Solana), usando derivação hardened em todos os níveis para compatibilidade com ed25519 (SLIP-0010).
+
+### Troubleshooting (Solana)
+- Erro de conexão RPC:
+   ```bash
+   # Verifique se o validador está ligado e o RPC está acessível
+   curl http://127.0.0.1:8899/  # deve responder
+   ```
+- Saldo insuficiente:
+   ```bash
+   # Faça airdrop no validador local
+   solana airdrop 1 <SEU_ENDERECO> --url http://127.0.0.1:8899
+   ```
+- Erro ao derivar chaves / caminho inválido:
+   - Verifique se o path está no formato `m/44'/501'/0'/0'/0'` e que números são válidos.
+
+#### Erro ao executar o instalador oficial via `curl`
+
+Se ao rodar o comando de instalação oficial você recebe:
+
+```
+curl: (35) error:0A000126:SSL routines::unexpected eof while reading
+```
+
+Possíveis causas e soluções:
+
+- Problema de TLS/SSL local (OpenSSL/curl desatualizado ou incompatível): tente atualizar certificados e pacotes TLS:
+   ```bash
+   sudo apt update
+   sudo apt install --reinstall ca-certificates openssl curl
+   sudo update-ca-certificates
+   ```
+
+- Interceptação por proxy/filtragem corporativa (MITM) — verifique variáveis de ambiente `HTTP_PROXY`/`HTTPS_PROXY` e se estiver atrás de proxy configure corretamente:
+   ```bash
+   echo $HTTPS_PROXY
+   export HTTPS_PROXY="http://proxy.example:8080"
+   ```
+
+- Forçar TLSv1.2 (teste):
+   ```bash
+   curl --tlsv1.2 -v -sSfL https://release.solana.com/stable/install -o /dev/null
+   ```
+
+- Teste de handshake com OpenSSL para inspecionar detalhes:
+   ```bash
+   openssl s_client -connect release.solana.com:443 -servername release.solana.com
+   ```
+
+- Workaround temporário (NÃO recomendado em produção): baixar script com verificação desativada apenas para testar:
+   ```bash
+   curl -k -sSfL https://release.solana.com/stable/install | sh
+   ```
+
+- Alternativa mais segura: baixar release/tarball oficial diretamente dos releases do GitHub e instalar manualmente (ver página de releases do Solana):
+   ```bash
+   # exemplo genérico — substitua pela URL correta da release desejada
+   wget https://github.com/solana-labs/solana/releases/download/v<SOME_TAG>/solana-release-x86_64-unknown-linux-gnu.tar.bz2
+   tar -xjf solana-release-*.tar.bz2
+   ./solana-release-*/install
+   ```
+
+Se nada funcionar, reporte a saída dos comandos `curl --version` e `openssl version -a`, e a saída do `openssl s_client` para ajudar na investigação.
+
+### Boas práticas e avisos
+- NUNCA use essas chaves em mainnet.
+- TESTE tudo em `solana-test-validator` ou testnet antes de ir para redes públicas.
 
 1. **Implemente verificação de saldo** antes de enviar
 2. **Adicione suporte a Smart Contracts** no Ethereum
