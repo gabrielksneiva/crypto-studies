@@ -1,6 +1,6 @@
-# BTCStudys - Estudos Práticos de Bitcoin e Ethereum
+# CryptoStudys - Estudos Práticos de Bitcoin, Ethereum e Solana
 
-Repositório educacional para aprender na prática como funcionam transações em Bitcoin e Ethereum, desde a derivação de carteiras HD até a assinatura e broadcast de transações.
+Repositório educacional para aprender na prática como funcionam transações em Bitcoin, Ethereum e Solana, desde a derivação de carteiras HD até a assinatura e broadcast de transações.
 
 ## 📚 Estrutura do Projeto
 
